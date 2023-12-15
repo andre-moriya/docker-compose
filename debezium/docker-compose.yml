@@ -1,0 +1,135 @@
+version: "3.8"
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: zookeeper-server
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - 2181:2181
+      - 2888:2888
+      - 3888:3888
+    networks:
+      - debezium-networks
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka-broker
+    depends_on:
+      - zookeeper
+    ports:
+      - 9092:9092
+      - 29092:29092
+      - 9999:9999
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+    networks:
+      - debezium-networks
+  schema-registry:
+    image: confluentinc/cp-schema-registry:latest
+    container_name: schema-registry
+    environment:
+      - SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL=zookeeper:2181
+      - SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS=kafka:9092
+      - SCHEMA_REGISTRY_HOST_NAME=schema-registry
+      - SCHEMA_REGISTRY_LISTENERS=http://schema-registry:9091,http://localhost:9091
+      - SCHEMA_REGISTRY_ACCESS_CONTROL_ALLOW_METHODS=GET,POST,PUT,OPTIONS
+      - SCHEMA_REGISTRY_ACCESS_CONTROL_ALLOW_ORIGIN=*
+    ports:
+      - 9091:9091
+    depends_on: [zookeeper, kafka]
+    networks:
+      - debezium-networks
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui    
+    ports:
+      - 9000:9000
+    depends_on:
+      - zookeeper
+      - kafka
+    environment:
+      DYNAMIC_CONFIG_ENABLED: true
+      SERVER_PORT: 9000
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schema-registry:9091
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: first
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://debezium-connect:8083
+    networks:
+      - debezium-networks
+
+  debezium-connect:
+    image: quay.io/debezium/connect:${DEBEZIUM_VERSION}
+    container_name: debezium-connect
+    environment:
+      - BOOTSTRAP_SERVERS=kafka:9092
+      - GROUP_ID=1
+      - CONFIG_STORAGE_TOPIC=dbz_connect_configs
+      - OFFSET_STORAGE_TOPIC=dbz_connect_offsets
+      - STATUS_STORAGE_TOPIC=dbz_connect_statuses
+      - ENABLE_DEBEZIUM_KC_REST_EXTENSION=true
+      - ENABLE_DEBEZIUM_SCRIPTING=true
+      - KEY_CONVERTER_SCHEMAS_ENABLE=false
+      - VALUE_CONVERTER_SCHEMAS_ENABLE=false
+      - INTERNAL_KEY_CONVERTER=org.apache.kafka.connect.json.JsonConverter
+      - INTERNAL_VALUE_CONVERTER=org.apache.kafka.connect.json.JsonConverter
+      - CONNECT_KEY_CONVERTER_SCHEMA_REGISTRY_URL=http://schema-registry:9091
+      - CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL=http://schema-registry:9091
+      - CONNECT_REST_EXTENSION_CLASSES=io.debezium.kcrestextension.DebeziumConnectRestExtension
+    depends_on: [ kafka ]
+    ports:
+      - 9093:8083
+    networks:
+      - debezium-networks
+  debezium-ui:
+    image: quay.io/debezium/debezium-ui:${DEBEZIUM_VERSION}
+    container_name: debezium-ui
+    environment:
+      - KAFKA_CONNECT_URIS=http://debezium-connect:8083
+    ports:
+      - 9094:8080
+    networks:
+      - debezium-networks  
+
+  postgres:
+    image: postgres:latest
+    container_name: postgres-server
+    command: [ "postgres", "-c", "wal_level=logical" ]
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    ports:
+      - 5432:5432
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - debezium-networks
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: andremoriya@gmail.com
+      PGADMIN_DEFAULT_PASSWORD: admin 
+      PGADMIN_LISTEN_PORT: 9090
+    ports:
+      - 9095:9090
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - debezium-networks
+
+networks:
+  debezium-networks:
+
+volumes:
+  postgres_data:
+  pgadmin_data:
+
+    

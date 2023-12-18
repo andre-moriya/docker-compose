@@ -1,5 +1,7 @@
 version: "3.8"
 
+name: debezium-services
+
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
@@ -54,6 +56,8 @@ services:
     depends_on:
       - zookeeper
       - kafka
+    volumes:
+      - kafka_data:/var/lib/kafka/data
     environment:
       DYNAMIC_CONFIG_ENABLED: true
       SERVER_PORT: 9000
@@ -99,9 +103,10 @@ services:
       - debezium-networks  
 
   postgres:
-    image: postgres:latest
+    image: quay.io/debezium/postgres:16-alpine
+    # image: postgres:latest
     container_name: postgres-server
-    command: [ "postgres", "-c", "wal_level=logical" ]
+    # command: [ "postgres", "-c", "wal_level=logical" ]
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
@@ -129,6 +134,7 @@ networks:
   debezium-networks:
 
 volumes:
+  kafka_data:
   postgres_data:
   pgadmin_data:
 

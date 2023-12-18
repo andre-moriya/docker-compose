@@ -1,0 +1,33 @@
+version: '3.8'
+
+name: postgres-container
+
+services:
+  postgres:
+    image: postgres:latest
+    container_name: postgres-server
+    command: [ "postgres", "-c", "wal_level=logical" ] # To use with debezium
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    ports:
+      - 5432:5432
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks_mode: bridge
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: andremoriya@gmail.com
+      PGADMIN_DEFAULT_PASSWORD: admin 
+      PGADMIN_LISTEN_PORT: 9090
+    ports:
+      - 9095:9090
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks_mode: bridge
+
+volumes:
+  postgres_data:
+  pgadmin_data:
